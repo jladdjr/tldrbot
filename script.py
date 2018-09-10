@@ -13,7 +13,13 @@ def check_channel(channel):
     channel_name, channel_id = channel
     print('Reading {}'.format(channel_name))
 
-    conv_history = sc.api_call("channels.history", channel=channel_id)
+    if channel_id[0] == 'G':
+        api_method = 'groups.history'
+    elif channel_id[0] == 'C':
+        api_method = 'channels.history'
+    else:
+        raise Exception('Do not recognize channel type for {0} ({1})'.format(channel_id, channel_name))
+    conv_history = sc.api_call(api_method, channel=channel_id)
     #print conv_history.keys()
     #import pdb; pdb.set_trace()
 
@@ -52,5 +58,6 @@ while True:
     for channel in channels:
         check_channel(channel)
         time.sleep(5)
+    print("---------------------------------------")
     time.sleep(60 * 5)
 
