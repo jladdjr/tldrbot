@@ -4,7 +4,8 @@ import time
 
 from slackclient import SlackClient
 
-channels = [('channel-name', 'C0000000000')]
+channels = [('channel_name', 'C0000000000')]
+users = [('user_name', 'U0000000000')]
 
 slack_token = os.environ["SLACK_TOKEN"]
 sc = SlackClient(slack_token)
@@ -30,6 +31,16 @@ def check_channel(channel):
         if current_time - timestamp > 60 * 5:
             continue
 
+        if 'user' in msg and 'text' in msg and \
+            msg['user'] in [user[1] for user in users]:
+            timestamp_str = time.strftime('%H:%M:%S', time.localtime(timestamp))
+            notice = u'VIP (<@{0}>): In <#{1}|{2}>, at {3}, "{4}"'.format(msg['user'], channel_id,
+                                                                          channel_name, timestamp_str,
+                                                                          msg['text'])
+            print(notice)
+            sc.api_call("chat.postMessage", channel="D1EPGDKGB", text=notice)
+            time.sleep(5)
+
         timestamps.append(timestamp)
 
         if len(timestamps) < 10:
@@ -40,14 +51,11 @@ def check_channel(channel):
             avg_rate = (timestamp - timestamps[0]) / 9.0
             backoff_period = timestamp + 180
             timestamp_str = time.strftime('%H:%M:%S', time.localtime(timestamp))
-            notice = u"""In <#{0}|{1}>, at {2}, "{3}" (_rate: {4} sec/msg_)""".format(channel_id, channel_name, timestamp_str, msg['text'], int(avg_rate))
-
+            notice = u"""In <#{0}|{1}>, at {2}, "{3}" (_rate: {4} sec/msg_)""".format(channel_id, channel_name,
+                                                                                      timestamp_str, msg['text'],
+                                                                                      int(avg_rate))
             print(notice)
-            sc.api_call(
-              "chat.postMessage",
-              channel="D1EPGDKGB", # jim
-              text=notice
-            )
+            sc.api_call("chat.postMessage", channel="D1EPGDKGB", text=notice)
             time.sleep(5)
 
         timestamps.pop(0)
