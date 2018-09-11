@@ -20,8 +20,6 @@ def check_channel(channel):
     else:
         raise Exception('Do not recognize channel type for {0} ({1})'.format(channel_id, channel_name))
     conv_history = sc.api_call(api_method, channel=channel_id)
-    #print conv_history.keys()
-    #import pdb; pdb.set_trace()
 
     timestamps = []
     backoff_period = 0
