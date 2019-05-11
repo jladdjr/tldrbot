@@ -70,7 +70,7 @@ class ScoredMessages(object):
         self.callbacks = callbacks if type(callbacks) is list else [callbacks]
 
     def __str__(self):
-        return u'\n'.join(['{0}\t{1:125.125}'.format(m.score, m.msg['text']) for m in self.messages])
+        return u'\n'.join([u'{0}\t{1:125.125}'.format(m.score, m.msg['text']) for m in self.messages])
 
     def extend(self, msgs):
         msgs = msgs if type(msgs) is list else list(msgs)
@@ -152,6 +152,24 @@ class NaturalBreaksStrategy(Strategy):
 
         logger.info(u'{}: Finished scanning'.format(self))
 
+class ReactionsAreGood(Strategy):
+
+    def __init__(self):
+        super(ReactionsAreGood, self).__init__()
+
+    def __str__(self):
+        return 'ReactionsAreGood'
+
+    def scan(self, messages):
+        logger.info(u'{}: Begin scanning'.format(self))
+        messages = messages.getCurrentBatch()
+
+        for msg in messages:
+            if 'reactions' in msg.msg:
+                for _ in range(len(msg.msg['reactions']) / 2): # TODO
+                    msg.upvote()
+
+        logger.info(u'{}: Finished scanning'.format(self))
 
 class SlackNotificationCallbackFactory(object):
 
@@ -174,18 +192,19 @@ class SlackNotificationCallbackFactory(object):
 def noop_callback(msg):
     pass
 
-#slack_channel = SlackChannel('C0H0TG8CV', 'tower_api_internal')
-slack_channel = SlackChannel('C0F7S8BT5', 'ship_it')
+slack_channel = SlackChannel('C0H0TG8CV', 'tower_api_internal')
+#slack_channel = SlackChannel('C0F7S8BT5', 'ship_it')
 #slack_channel = SlackChannel('C0SNM2FM4', 'test_notifications2')
 
-strategy = NaturalBreaksStrategy()
+strategies = [NaturalBreaksStrategy(),
+              ReactionsAreGood()]
 
 #cb = SlackNotificationCallbackFactory.getCallback('D1EPGDKGB', 'C0H0TG8CV', 'tower_api_internal')
 cb = noop_callback
 start_time = time.time() - 10 * 60 * 60
 
 scraper = ChannelScraper(slack_channel,
-                         strategies=strategy,
+                         strategies=strategies,
                          callbacks=cb,
                          since=start_time)
 scraper.scrape()
