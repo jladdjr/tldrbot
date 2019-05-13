@@ -62,7 +62,7 @@ class ScoredMessage(object):
 
 class ScoredMessages(object):
 
-    def __init__(self, threshold=1, max_length=500, callbacks=None):
+    def __init__(self, threshold=3, max_length=500, callbacks=None):
         self.messages = []
         self.threshold = threshold
         self.max_length = max_length
@@ -96,20 +96,28 @@ class ScoredMessages(object):
 
 class ChannelScraper(object):
 
-    def __init__(self, slack_channel, strategies=None, interval=30, callbacks=None, since=None):
+    def __init__(self, slack_channel, strategies=None, interval=30, callbacks=None, since=None, threshold=3):
         self.slack_channel = slack_channel
         self.strategies = strategies if type(strategies) is list else [strategies]
         self.messages = ScoredMessages(callbacks=callbacks)
         self.last_timestamp = since if since else time.time()
-        self.interval = interval
+        self.interval = interval  # in minutes
+        self.first_pass = True
 
-    def scrape(self):
+    def _scrape(self):
         logger.info(u'Begin scraping {}'.format(self.slack_channel))
 
-        if time.time() - self.last_timestamp < self.interval:
+        if not self.first_pass and \
+           (time.time() - self.last_timestamp < self.interval * 60):
+            logger.warning(u'Started scraping before wait interval was finished')
             return
+        self.first_pass = False
 
         messages = slack_channel.history(since=self.last_timestamp)['messages']
+        if not len(messages):
+            logger.info(u'No messages to scan')
+            return
+
         self.messages.extend(reversed(list(messages)))
 
         self.last_timestamp = time.time()
@@ -119,6 +127,12 @@ class ChannelScraper(object):
         logger.info(u'Finished scraping {}'.format(self.slack_channel))
 
         logger.info(u'ScoredMessages:\n{}'.format(self.messages))
+
+    def scrape(self):
+        while True:
+            self._scrape()
+            time.sleep(self.interval * 60)
+
 
 class Strategy(object):
 
@@ -130,7 +144,7 @@ class Strategy(object):
 
 class NaturalBreaksStrategy(Strategy):
 
-    def __init__(self, break_length=10*60):
+    def __init__(self, break_length=5*60):
         super(NaturalBreaksStrategy, self).__init__()
         self.break_length = break_length
 
@@ -146,7 +160,7 @@ class NaturalBreaksStrategy(Strategy):
         for msg in messages:
             ts = float(msg.msg['ts'])
             if ts - last_ts > self.break_length:
-                logger.info(u'{}: Found natural break: {}'.format(self, msg.msg['text']))
+                logger.debug(u'{}: Upvoting {}'.format(self, msg.msg['text']))
                 msg.upvote()
             last_ts = ts
 
@@ -166,7 +180,8 @@ class ReactionsAreGood(Strategy):
 
         for msg in messages:
             if 'reactions' in msg.msg:
-                for _ in range(len(msg.msg['reactions']) / 2): # TODO
+                logger.debug(u'{}: Upvoting {}'.format(self, msg.msg['text']))
+                for _ in range(len(msg.msg['reactions'])): # TODO
                     msg.upvote()
 
         logger.info(u'{}: Finished scanning'.format(self))
@@ -199,12 +214,14 @@ slack_channel = SlackChannel('C0H0TG8CV', 'tower_api_internal')
 strategies = [NaturalBreaksStrategy(),
               ReactionsAreGood()]
 
-#cb = SlackNotificationCallbackFactory.getCallback('D1EPGDKGB', 'C0H0TG8CV', 'tower_api_internal')
-cb = noop_callback
-start_time = time.time() - 10 * 60 * 60
+cb = SlackNotificationCallbackFactory.getCallback('D1EPGDKGB', 'C0H0TG8CV', 'tower_api_internal')
+#cb = noop_callback
+#start_time = time.time() - 10 * 60 * 60
 
 scraper = ChannelScraper(slack_channel,
                          strategies=strategies,
                          callbacks=cb,
-                         since=start_time)
+                         interval=60,
+                         threshold=3)
+                         #since=start_time)
 scraper.scrape()
